@@ -183,7 +183,7 @@ Let's come up with the rate limit configuration based on the claims in the JWT t
 kubectl apply -f policies/ratelimitconfig.yaml
 ```
 
-The rate limit we're setting (70 requests per hour) is the number of input tokens to the LLM provider. This is a very low limit and is just for demonstration purposes. In a real-world scenario, you would set this limit based on the expected usage of the LLM provider.
+The rate limit we're setting (70 tokens per hour) is the number of input tokens to the LLM provider. This is a very low limit and is just for demonstration purposes. In a real-world scenario, you would set this limit based on the expected usage of the LLM provider.
 
 The second part of the configuration is create the RouteOption resource where we add the rate limit configuration for the specific route (OpenAI in this case):
 
@@ -442,3 +442,33 @@ Let's configure the Gloo AI Gateway to use Redis for semantic caching by deployi
 ```
 kubectl apply -f policies/semantic-caching-openai-routeoption.yaml 
 ```
+
+This configuration tells the Gloo AI Gateway to use a Redis instance (`redis://redis-semantic-cache.gloo-system.svc.cluster.local:6379`) to cache the responses for semantically similar queries in Redis. Let's try sending the same prompt multiple times and see how the response time changes
+
+```
+./curl-request-semantic-cache-one.sh
+```
+
+Notice the response time returned in `x-envoy-upstream-service-time`. Now send the request again and see how the response time changes:
+
+```
+./curl-request-semantic-cache-one.sh
+```
+
+The response should be significantly faster this time because the response is cached in Redis and the Gloo AI Gateway is reusing the cached response for the same prompt. We know the response was cached because the `x-gloo-semantic-cache: hit` header is present in the response.
+
+If you modify the prompt so it's still semantically similar but not exactly the same, the Gloo AI Gateway will still use the cached response. Let's try sending a slightly modified prompt and see we get a cached response:
+
+```
+./curl-request-semantic-cache-two.sh
+```
+
+You should again get the cached response as the question is semantically equivalent to the previous question.
+
+Finally, let's try another question that is semantically equivalent to the first two:
+
+```
+./curl-request-semantic-cache-three.sh
+```
+
+And again, we see that we get a cached response.
